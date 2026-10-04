@@ -501,12 +501,17 @@ describe('OpenAI-compatible media providers', () => {
     expect(bytes.length).toBeGreaterThan(0);
   });
 
-  it('treats the public Model Studio compatible-mode host as generations-style for reference images too', async () => {
+  it.each([
+    'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    'https://dashscope-us.aliyuncs.com/compatible-mode/v1',
+    'https://cn-hongkong.dashscope.aliyuncs.com/compatible-mode/v1',
+  ])('treats the Model Studio legacy DashScope host %s as generations-style for reference images', async (baseUrl) => {
     await writeConfig({
       providers: {
         'custom-image': {
           apiKey: 'dashscope-test-key',
-          baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+          baseUrl,
           model: 'qwen-image-3.0-pro',
         },
       },
@@ -519,7 +524,7 @@ describe('OpenAI-compatible media providers', () => {
     );
 
     const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
-      expect(String(input)).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1/images/generations');
+      expect(String(input)).toBe(`${baseUrl.replace(/\/+$/, '')}/images/generations`);
       expect(init?.method).toBe('POST');
       const body = JSON.parse(String(init?.body));
       expect(body.image).toMatch(/^data:image\/png;base64,/);
@@ -542,6 +547,52 @@ describe('OpenAI-compatible media providers', () => {
       prompt: 'Place this reference logo centered on a white background',
       image: 'reference.png',
       output: 'dashscope-edited.png',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not treat an arbitrary aliyuncs.com host as Model Studio for reference images', async () => {
+    await writeConfig({
+      providers: {
+        'custom-image': {
+          apiKey: 'other-test-key',
+          baseUrl: 'https://images.example.cn-beijing.aliyuncs.com/v1',
+          model: 'acme-image-model',
+        },
+      },
+    });
+    const projectDir = path.join(projectsRoot, 'project-1');
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(
+      path.join(projectDir, 'reference.png'),
+      Buffer.from(PNG_BASE64, 'base64'),
+    );
+
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      expect(String(input)).toBe('https://images.example.cn-beijing.aliyuncs.com/v1/images/edits');
+      expect(init?.method).toBe('POST');
+      const body = JSON.parse(String(init?.body));
+      expect(body.images).toHaveLength(1);
+      expect(body).not.toHaveProperty('image');
+      return new Response(JSON.stringify({
+        data: [{ b64_json: PNG_BASE64 }],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await generateMedia({
+      projectRoot,
+      projectsRoot,
+      projectId: 'project-1',
+      surface: 'image',
+      model: 'custom-image',
+      prompt: 'Place this reference logo centered on a white background',
+      image: 'reference.png',
+      output: 'non-model-studio-edited.png',
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

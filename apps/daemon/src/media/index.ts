@@ -1263,15 +1263,20 @@ function detectAzureEndpoint(baseUrl: string): boolean {
  *
  *   true examples
  *     https://ws-xxxx.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+ *     https://trial.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
  *     https://dashscope.aliyuncs.com/compatible-mode/v1
  *     https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+ *     https://dashscope-us.aliyuncs.com/compatible-mode/v1
+ *     https://cn-hongkong.dashscope.aliyuncs.com/compatible-mode/v1
  *   false examples
  *     https://api.openai.com/v1
+ *     https://images.example.cn-beijing.aliyuncs.com/v1
  *     http://localhost:8080/v1
  *
- * Model Studio publishes no /images/edits route, so custom-image
- * reference-image requests must go to /images/generations with a
- * top-level `image` field instead of failing on a body-less 404.
+ * Model Studio publishes no /images/edits route on any of its regional
+ * hosts, so custom-image reference-image requests must go to
+ * /images/generations with a top-level `image` field instead of failing
+ * on a body-less 404.
  */
 function isModelStudioCompatibleBaseUrl(baseUrl: string): boolean {
   if (typeof baseUrl !== 'string' || !baseUrl) return false;
@@ -1279,6 +1284,8 @@ function isModelStudioCompatibleBaseUrl(baseUrl: string): boolean {
     const host = new URL(baseUrl).hostname.toLowerCase();
     return host === 'dashscope.aliyuncs.com'
       || host === 'dashscope-intl.aliyuncs.com'
+      || host === 'dashscope-us.aliyuncs.com'
+      || host.endsWith('.dashscope.aliyuncs.com')
       || host.endsWith('.maas.aliyuncs.com');
   } catch {
     return false;
